@@ -30,9 +30,6 @@ Adafruit_AlphaNum4 alpha4_0 = Adafruit_AlphaNum4();
 // char displaybuffer[8] = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
 
-#define LED_PIN 13 // GPIO pin for the built-in LED on ESP32-S3-WROOM-1
-
-
 
 // Replace with default credentials if desired
 const char *DEFAULT_SSID = "MyWiFi";
@@ -75,19 +72,29 @@ const unsigned long WIFI_TIMEOUT_MS = 20000;
 
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(9600);
   preferences.begin("wifi-creds", false);
 
+
+  Serial.print("in Setup\n");
+
+  Wire.begin(SDA, SCL);  // SDA pin 9 and one in on LCD board, SLC pin 18 and rightmost on LCD board 
+  
   // setup the LED display
   alpha4_0.begin(0x70);  // first one
   alpha4_1.begin(0x71);  // 2nd one
   
-  pinMode(LED_PIN, OUTPUT); // Set LED pin as output
 
-  digitalWrite(LED_PIN, HIGH); // Turn LED on
-  delay(1000);                // Wait for 1 second
-  digitalWrite(LED_PIN, LOW);  // Turn LED off
-  delay(1000);                // Wait for 1 second
+  alpha4_0.clear();
+  alpha4_1.clear();
+
+  alpha4_0.writeDigitAscii(0,50);
+  alpha4_1.writeDigitAscii(0,51);
+
+  // Update both displays
+  alpha4_0.writeDisplay();
+  alpha4_1.writeDisplay();
+
 
 
   String ssid = preferences.getString("ssid", DEFAULT_SSID);
@@ -193,6 +200,10 @@ String padString(String input, int totalLength) {
 // Function to display a string across two displays
 void displayStringAcrossTwoDisplays(String text) {
 
+  Serial.printf("text length = %d\n", text.length());
+
+  return;
+
   // add spaces to the end so we don't get null
   text += "        ";
 
@@ -218,6 +229,9 @@ void displayStringAcrossTwoDisplays(String text) {
     alpha4_1.writeDigitAscii(i, 'x'); // Write each character to the display
   }
 
+  alpha4_0.writeDigitAscii(0,50);
+  alpha4_1.writeDigitAscii(0,51);
+
   // Update both displays
   alpha4_0.writeDisplay();
   alpha4_1.writeDisplay();
@@ -233,7 +247,7 @@ void loop() {
     Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
     server.handleClient();
 
-    displayStringAcrossTwoDisplays("Andy1");
+    //displayStringAcrossTwoDisplays("Andy1");
 
     const char* remote_host = "www.google.com";
     Serial.print(remote_host);
