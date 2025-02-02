@@ -47,15 +47,20 @@ DNSServer dnsServer;
 bool isConnected = false;
 
 
+// global output string to have consistency across runs
+String outputText = "<------>";
+
+
+
 // here's the form for configuring the WiFi network and the destination to ping
 String htmlPage = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
-  <title>ESP32 WiFi Config</title>
+  <title>Pinger Toy Config</title>
 </head>
 <body>
-  <h1>Andy's Pinger Toy</h1>
+  <h1>Andy's Pinger Toy Config</h1>
    <h2>Configure WiFi</h2>
   <form action="/save" method="post">
     <label for="ssid">SSID:</label><br>
@@ -68,7 +73,29 @@ String htmlPage = R"rawliteral(
   </form>
 </body>
 </html>
-)rawliteral"; // TODO:  addparser for pingDest  
+)rawliteral"; 
+
+
+
+
+// here's the form for configuring the WiFi network and the destination to ping
+String htmlPageDest = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pinger Toy Config</title>
+</head>
+<body>
+  <h1>Andy's Pinger Toy Config</h1>
+   <h2>Configure Destination to Ping</h2>
+  <form action="/save" method="post">
+    <label for="pingDest">Server to ping:</label><br>
+    <input type="text" id="pingDest" name="pingDest"><br><br>
+    <input type="submit" value="Save">
+  </form>
+</body>
+</html>
+)rawliteral"; 
 
 
 void padString(char *str, int maxLength) {
@@ -108,12 +135,15 @@ void padString(char *str, int maxLength) {
 // Function to display a string across two displays
 void displayStringAcrossTwoDisplays(String text) {
 
-  Serial.printf("text length = %d\n", text.length());
+  // Serial.printf("text length = %d\n", text.length());
 
   // return;
 
   // add spaces to the end so we don't get null
+  // yes, I know this is a terrible hack, and it shouldn't happen, 
   text += "        ";
+
+  
 
   // String paddedText = padString(text, 8);
 
@@ -143,8 +173,23 @@ void displayStringAcrossTwoDisplays(String text) {
   alpha4_1.writeDisplay();
 }
 
+void scrollText(String text, int displayWidth, int delayTime) {
+    String paddedText = "        " + text + "        ";  // Pad with spaces for smooth scrolling
+    int textLength = paddedText.length();
 
+    for (int i = 0; i <= textLength - displayWidth; i++) {
+        String frame = paddedText.substring(i, i + displayWidth);
+        displayStringAcrossTwoDisplays(frame); 
+        delay(delayTime);
+    }
+}
 
+//  ____       _               
+// / ___|  ___| |_ _   _ _ __  
+// \___ \ / _ \ __| | | | '_ \ 
+//  ___) |  __/ |_| |_| | |_) |
+// |____/ \___|\__|\__,_| .__/ 
+//                      |_|    
 
 
 void setup() {
@@ -173,7 +218,9 @@ void setup() {
   // alpha4_0.writeDisplay();
   // alpha4_1.writeDisplay();
 
-  displayStringAcrossTwoDisplays("*Setup*");
+//  displayStringAcrossTwoDisplays("*Setup*");
+
+  scrollText("Welcome. In Setup", 8, 200);
 
 
   // get the stored Wifi credentials
@@ -184,9 +231,9 @@ void setup() {
   // try to connect to WiFi using stored creds
   if (connectToWiFi(ssid.c_str(), password.c_str())) {
     isConnected = true;
-    startServer();
+    startServer();  // used to setup the destination to ping
   } else {
-    startAccessPoint();
+    startAccessPoint(); // used ot setup the WiFi connection and destination to ping
   }
 }
 
@@ -214,33 +261,37 @@ void startAccessPoint() {
   const char *apSSID = "PingToy";
   const char *apPassword = "LoganMcNeil";
 
-  displayStringAcrossTwoDisplays("*WIFI**");
-  delay(1000);
-  displayStringAcrossTwoDisplays("CONNECT");
-  delay(1000);
-  displayStringAcrossTwoDisplays("TO");
-  delay(1000);
-  displayStringAcrossTwoDisplays("PingToy");
-  delay(1000);
 
+  for (int i = 0; i < 3; i++)
+    scrollText("Connect to Access Point: PingToy, password LoganMcNeil", 8, 200);
+  
   WiFi.softAP(apSSID, apPassword);
   IPAddress IP = WiFi.softAPIP();
   Serial.printf("AP started. IP: %s\n", IP.toString().c_str());
 
+  char tempOut[20];
+  sprintf(tempOut, "IP: %s\n", IP.toString());
+
+  for (int i = 0; i < 3; i++)
+    scrollText(tempOut, 8, 200);
+
   dnsServer.start(53, "*", IP);
+
+
   server.on("/", HTTP_GET, []() {
     server.send(200, "text/html", htmlPage);
   });
 
   server.on("/save", HTTP_POST, []() {
     if (server.hasArg("ssid") && server.hasArg("password")) {
-      String ssid = server.arg("ssid");
-      String password = server.arg("password");
+      // String ssid = server.arg("ssid");
+      // String password = server.arg("password");
 
-      preferences.putString("ssid", ssid);
-      preferences.putString("password", password);
+      preferences.putString("ssid", server.arg("ssid"));
+      preferences.putString("password", server.arg("password"));
+      preferences.putString("pingDest", server.arg("pingDest"));
 
-      server.send(200, "text/html", "<h1>Credentials Saved. Restart the ESP32.</h1>"); // add comment for IP saved
+      server.send(200, "text/html", "<h1>Credentials Saved. Restarting.</h1>"); // add comment for IP saved
       delay(1000);
       ESP.restart();
     } else {
@@ -257,23 +308,23 @@ void startAccessPoint() {
 
 void startServer() {
 
-   server.on("/", HTTP_GET, []() {
-    server.send(200, "text/html", htmlPage);
+  // this is the server that's running when the server is connected to Wifi
+
+  server.on("/", HTTP_GET, []() {
+    server.send(200, "text/html", htmlPageDest);
   });
 
   server.on("/save", HTTP_POST, []() {
-    if (server.hasArg("ssid") && server.hasArg("password")) {
-      String ssid = server.arg("ssid");
-      String password = server.arg("password");
+    if (server.hasArg("pingDest")) {
 
-      preferences.putString("ssid", ssid);
-      preferences.putString("password", password);
+      preferences.putString("pingDest", server.arg("pingDest"));
 
-      server.send(200, "text/html", "<h1>Credentials Saved. Restart the ESP32.</h1>"); // add comment for IP saved
+
+      server.send(200, "text/html", "<h1>Destination Saved. Restarting.</h1>"); // add comment for IP saved
       delay(1000);
       ESP.restart();
     } else {
-      server.send(400, "text/html", "<h1>Invalid Input</h1>");
+      server.send(400, "text/html", "<h1>Invalid Input</h1><p><a href =\"\\\">home</a>");
     }
   });
 
@@ -285,7 +336,7 @@ void startServer() {
 
 void loop() {
   
-  String outputText = "<------>";
+  //  String outputText = "<------>"; // MADE GLOBAL
 
   char outputChar[20] = "xxxxxxx";
 
@@ -301,8 +352,16 @@ void loop() {
     // displayStringAcrossTwoDisplays("Connected");
 
 
+    String pingDestStr = preferences.getString("pingDest", "www.workday.com");
 
-    const char* remote_host = "www.google.com";
+
+    const char* remote_host = pingDestStr.c_str();
+
+    scrollText(pingDestStr, 8, 150);
+
+    displayStringAcrossTwoDisplays(outputText); // show the last output output text while running the next ping
+  
+
     Serial.print(remote_host);
     if (Ping.ping(remote_host) > 0){
       Serial.printf(" response time : %d/%.2f/%d ms\n", Ping.minTime(), Ping.averageTime(), Ping.maxTime());
@@ -317,7 +376,7 @@ void loop() {
     
     displayStringAcrossTwoDisplays(outputText);
     
-    delay(1000); 
+    delay(2000); 
 
     // format for display on LED or servo.
   } else {
