@@ -27,13 +27,14 @@
 Adafruit_AlphaNum4 alpha4_1 = Adafruit_AlphaNum4();
 Adafruit_AlphaNum4 alpha4_0 = Adafruit_AlphaNum4();
 
-// char displaybuffer[8] = {' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
 
-
-
-// Replace with default credentials if desired
+// Replace with default credentials if desired, 
 const char *DEFAULT_SSID = "MyWiFi";
 const char *DEFAULT_PASSWORD = "MyPassword";
+
+// Timeout for connecting to Wi-Fi
+const unsigned long WIFI_TIMEOUT_MS = 20000;
+
 
 
 // Host to ping
@@ -45,6 +46,8 @@ DNSServer dnsServer;
 
 bool isConnected = false;
 
+
+// here's the form for configuring the WiFi network and the destination to ping
 String htmlPage = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -65,10 +68,83 @@ String htmlPage = R"rawliteral(
   </form>
 </body>
 </html>
-)rawliteral"; // need to add input for site to ping. 
+)rawliteral"; // TODO:  addparser for pingDest  
 
-// Timeout for connecting to Wi-Fi
-const unsigned long WIFI_TIMEOUT_MS = 20000;
+
+void padString(char *str, int maxLength) {
+    // straight from ChatGPT, baby.
+
+    int len = strlen(str);
+
+    // If the string is longer than maxLength, truncate it
+    if (len > maxLength) {
+        str[maxLength] = '\0';  // Cut off at maxLength
+        return;
+    }
+
+    // If shorter, pad with spaces
+    int padSize = maxLength - len;
+    char temp[maxLength + 1];  // Temporary buffer
+
+    // Fill with spaces
+    memset(temp, ' ', padSize);
+
+    // Copy original string to the end of the temp buffer
+    strcpy(temp + padSize, str);
+
+    // Copy back to original string
+    strncpy(str, temp, maxLength);
+    str[maxLength] = '\0';  // Ensure null termination
+}
+
+//  ____  _           _             
+// |  _ \(_)___ _ __ | | __ _ _   _ 
+// | | | | / __| '_ \| |/ _` | | | |
+// | |_| | \__ \ |_) | | (_| | |_| |
+// |____/|_|___/ .__/|_|\__,_|\__, |
+//             |_|            |___/ 
+
+
+// Function to display a string across two displays
+void displayStringAcrossTwoDisplays(String text) {
+
+  Serial.printf("text length = %d\n", text.length());
+
+  // return;
+
+  // add spaces to the end so we don't get null
+  text += "        ";
+
+  // String paddedText = padString(text, 8);
+
+  // Split the text for the two displays
+  //String alpha4_0_text = paddedText.substring(0, 3);
+  //String alpha4_1_text = paddedText.substring(4, 8);
+
+  // Clear both displays
+  alpha4_0.clear();
+  alpha4_1.clear();
+
+  // Write to Display 1
+  for (int i = 0; i <= 3; i++) {
+    char c = text.charAt(i);
+    //Serial.printf("Display 1: %u %c \n", i, c);
+    alpha4_0.writeDigitAscii(i, c); // Write each character to the display
+  }
+
+  // Write to Display 2
+  for (int i = 0; i<= 3; i++) {
+    char c = text.charAt(i+4); // remember we're showing the next 4 digits
+    alpha4_1.writeDigitAscii(i, c); // Write each character to the display
+  }
+
+  // Update both displays
+  alpha4_0.writeDisplay();
+  alpha4_1.writeDisplay();
+}
+
+
+
 
 
 void setup() {
@@ -78,28 +154,34 @@ void setup() {
 
   Serial.print("in Setup\n");
 
+  
+  // setup the LED displays 
+
   Wire.begin(SDA, SCL);  // SDA pin 9 and one in on LCD board, SLC pin 18 and rightmost on LCD board 
   
-  // setup the LED display
+  // setup the LED displays by device number
   alpha4_0.begin(0x70);  // first one
   alpha4_1.begin(0x71);  // 2nd one
   
-
   alpha4_0.clear();
   alpha4_1.clear();
 
-  alpha4_0.writeDigitAscii(0,50);
-  alpha4_1.writeDigitAscii(0,51);
+//  alpha4_0.writeDigitAscii(0,50);
+//  alpha4_1.writeDigitAscii(0,51);
 
-  // Update both displays
-  alpha4_0.writeDisplay();
-  alpha4_1.writeDisplay();
+  // // Update both displays
+  // alpha4_0.writeDisplay();
+  // alpha4_1.writeDisplay();
+
+  displayStringAcrossTwoDisplays("*Setup*");
 
 
-
+  // get the stored Wifi credentials
   String ssid = preferences.getString("ssid", DEFAULT_SSID);
   String password = preferences.getString("password", DEFAULT_PASSWORD);
 
+
+  // try to connect to WiFi using stored creds
   if (connectToWiFi(ssid.c_str(), password.c_str())) {
     isConnected = true;
     startServer();
@@ -129,8 +211,17 @@ bool connectToWiFi(const char *ssid, const char *password) {
 }
 
 void startAccessPoint() {
-  const char *apSSID = "PingerToy";
+  const char *apSSID = "PingToy";
   const char *apPassword = "LoganMcNeil";
+
+  displayStringAcrossTwoDisplays("*WIFI**");
+  delay(1000);
+  displayStringAcrossTwoDisplays("CONNECT");
+  delay(1000);
+  displayStringAcrossTwoDisplays("TO");
+  delay(1000);
+  displayStringAcrossTwoDisplays("PingToy");
+  delay(1000);
 
   WiFi.softAP(apSSID, apPassword);
   IPAddress IP = WiFi.softAPIP();
@@ -190,74 +281,43 @@ void startServer() {
   
 }
 
-String padString(String input, int totalLength) {
-  while (input.length() < totalLength) {
-    input += " "; // Append a space
-  }
-  return input;
-}
-
-// Function to display a string across two displays
-void displayStringAcrossTwoDisplays(String text) {
-
-  Serial.printf("text length = %d\n", text.length());
-
-  return;
-
-  // add spaces to the end so we don't get null
-  text += "        ";
-
-  // String paddedText = padString(text, 8);
-
-  // Split the text for the two displays
-  //String alpha4_0_text = paddedText.substring(0, 3);
-  //String alpha4_1_text = paddedText.substring(4, 8);
-
-  // Clear both displays
-  alpha4_0.clear();
-  alpha4_1.clear();
-
-  // Write to Display 1
-  for (int i = 0; 3; i++) {
-    char c = text.charAt(i);
-    alpha4_0.writeDigitAscii(i, 'x'); // Write each character to the display
-  }
-
-  // Write to Display 2
-  for (int i = 0; 3; i++) {
-    char c = text.charAt(i+4); // remember we're showing the next 4 digits
-    alpha4_1.writeDigitAscii(i, 'x'); // Write each character to the display
-  }
-
-  alpha4_0.writeDigitAscii(0,50);
-  alpha4_1.writeDigitAscii(0,51);
-
-  // Update both displays
-  alpha4_0.writeDisplay();
-  alpha4_1.writeDisplay();
-}
-
-
 
 
 void loop() {
+  
+  String outputText = "<------>";
+
+  char outputChar[20] = "xxxxxxx";
+
+  // displayStringAcrossTwoDisplays(outputText);
+
+
   if (isConnected) {
-    // Your main program logic goes here
+  
     Serial.println("Doing work while connected to Wi-Fi...");
     Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
     server.handleClient();
 
-    //displayStringAcrossTwoDisplays("Andy1");
+    // displayStringAcrossTwoDisplays("Connected");
+
+
 
     const char* remote_host = "www.google.com";
     Serial.print(remote_host);
     if (Ping.ping(remote_host) > 0){
       Serial.printf(" response time : %d/%.2f/%d ms\n", Ping.minTime(), Ping.averageTime(), Ping.maxTime());
+      sprintf(outputChar, "%.2f", Ping.averageTime());
+      padString(outputChar, 8);
+      outputText = outputChar;
+
     } else {
       Serial.println(" Ping Error !");
-    }    
+      outputText = "**Error**";
+    }
     
-    delay(1000); // Simulate work with a delay
+    displayStringAcrossTwoDisplays(outputText);
+    
+    delay(1000); 
 
     // format for display on LED or servo.
   } else {
