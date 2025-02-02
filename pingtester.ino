@@ -50,6 +50,10 @@ bool isConnected = false;
 // global output string to have consistency across runs
 String outputText = "<------>";
 
+// how many times since I showed the site I'm pinging
+
+const int siteShowCountMax = 30;
+int siteShowCount = siteShowCountMax;
 
 
 // here's the form for configuring the WiFi network and the destination to ping
@@ -220,7 +224,7 @@ void setup() {
 
 //  displayStringAcrossTwoDisplays("*Setup*");
 
-  scrollText("Welcome. In Setup", 8, 200);
+  scrollText("Ping Toy by andy.maxwell@workday.com", 8, 200);
 
 
   // get the stored Wifi credentials
@@ -354,10 +358,17 @@ void loop() {
 
     String pingDestStr = preferences.getString("pingDest", "www.workday.com");
 
-
     const char* remote_host = pingDestStr.c_str();
 
-    scrollText(pingDestStr, 8, 150);
+    // TODO: don't show it every time. Show it just once in a while
+    if (siteShowCount >= siteShowCountMax) {
+      scrollText(pingDestStr, 8, 150);
+      siteShowCount = 0;
+    } else {
+      siteShowCount++;
+    }
+
+//    Serial.println(siteShowCount);
 
     displayStringAcrossTwoDisplays(outputText); // show the last output output text while running the next ping
   
@@ -383,6 +394,7 @@ void loop() {
     // In case you want to handle something when not connected
     // write error to LED
     Serial.println("Not connected to Wi-Fi.");
+    displayStringAcrossTwoDisplays("No Wifi");
     delay(1000);
   }
 }
