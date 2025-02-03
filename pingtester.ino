@@ -27,6 +27,8 @@
 Adafruit_AlphaNum4 alpha4_1 = Adafruit_AlphaNum4();
 Adafruit_AlphaNum4 alpha4_0 = Adafruit_AlphaNum4();
 
+const int displayLength = 8;
+
 
 // Replace with default credentials if desired, 
 const char *DEFAULT_SSID = "MyWiFi";
@@ -44,14 +46,15 @@ Preferences preferences;
 WebServer server(80);
 DNSServer dnsServer;
 
-bool isConnected = false;
+bool isConnected = false; // global variable to show WiFi state
 
 
 // global output string to have consistency across runs
-String outputText = "<------>";
+String outputText = "<------>";  // the output to show on the display, preseve between loops.
 
-// how many times since I showed the site I'm pinging
+int dpAt = -1;  // position of the decimal point.  -1 to turn off
 
+// how many times since I showed the site address I'm pinging
 const int siteShowCountMax = 30;
 int siteShowCount = siteShowCountMax;
 
@@ -137,39 +140,75 @@ void padString(char *str, int maxLength) {
 
 
 // Function to display a string across two displays
-void displayStringAcrossTwoDisplays(String text) {
+void displayStringAcrossTwoDisplays(String text, int dPLocation = -1) {
 
-  // Serial.printf("text length = %d\n", text.length());
-
-  // return;
 
   // add spaces to the end so we don't get null
   // yes, I know this is a terrible hack, and it shouldn't happen, 
   text += "        ";
 
-  
 
-  // String paddedText = padString(text, 8);
+  // // TODO add thing to remove period character and move to decimal.
 
-  // Split the text for the two displays
-  //String alpha4_0_text = paddedText.substring(0, 3);
-  //String alpha4_1_text = paddedText.substring(4, 8);
+  // Not using this code.  Intead, just passing in an index where to turn on DP.
+  // if (decimalPointConvert){
+  //   char tempText[displayLength];
+  //   bool tempDot[displayLength];
+
+
+  //   // If there is a dot in the next character, 
+  //   // turn on the decimal point for this character
+  //   // and skip printing the dot
+
+  //   // I'll have to make a separate array to figure out when to add the decimal point
+
+
+  //   // +==========+=======+======+=======+=======+====+====+
+  //   // |  Array   |   0   |  1   |   2   |   3   | 4  | 5  |
+  //   // +==========+=======+======+=======+=======+====+====+
+  //   // | text     | 1     | 2    | .     | 3     | 4  | /0 |  input text
+  //   // +----------+-------+------+-------+-------+----+----+
+  //   // | tempDot  | false | true | false | false |    |    |  True if the next character is a dot
+  //   // +----------+-------+------+-------+-------+----+----+
+  //   // | tempText | 1     | 2    | 3     | 4     | /0 |    |  Remove the dot characters
+  //   // +----------+-------+------+-------+-------+----+----+
+  //   // | output   | 1     | 2.   | 3     | 4     | /0 |    |  how it will look displayed
+  //   // +----------+-------+------+-------+-------+----+----+
+
+  //   int j = 0;  // Output index
+
+  //   for (int i = 0; i < text.length(); i++) {  // Corrected loop
+  //       char tempChar = text[i];  // Get current character
+
+  //       if (tempChar == '.' && j > 0) {  
+  //           tempDot[j - 1] = true;  // Mark decimal point on the previous digit
+  //       } else {
+  //           tempText[j] = tempChar;  // Store the character
+  //           tempDot[j] = false;  // No decimal point here
+  //           j++;  // Move output index forward
+  //       }
+  //   }
+  //   tempText[j] = '\0';  // Null-terminate tempText
+
+  //   text = String(tempText);
+
+  // }
 
   // Clear both displays
   alpha4_0.clear();
   alpha4_1.clear();
 
+
   // Write to Display 1
   for (int i = 0; i <= 3; i++) {
     char c = text.charAt(i);
-    //Serial.printf("Display 1: %u %c \n", i, c);
-    alpha4_0.writeDigitAscii(i, c); // Write each character to the display
+    alpha4_0.writeDigitAscii(i, c, i == dPLocation ); // Write each character to the display, if it's the character with the decimal point, show it
   }
 
   // Write to Display 2
   for (int i = 0; i<= 3; i++) {
     char c = text.charAt(i+4); // remember we're showing the next 4 digits
-    alpha4_1.writeDigitAscii(i, c); // Write each character to the display
+    alpha4_1.writeDigitAscii(i, c, (i == dPLocation -4) ); // Write each character to the display
   }
 
   // Update both displays
@@ -188,6 +227,79 @@ void scrollText(String text, int displayWidth, int delayTime) {
     }
 }
 
+
+void blink(bool blinkOn){
+
+  if (blinkOn) {
+    alpha4_0.blinkRate(HT16K33_BLINK_2HZ);
+    alpha4_1.blinkRate(HT16K33_BLINK_2HZ);
+  } else {
+    alpha4_0.blinkRate(HT16K33_BLINK_OFF);
+    alpha4_1.blinkRate(HT16K33_BLINK_OFF);
+  }
+
+  // alpha4_0.writeDisplay();
+  // alpha4_1.writeDisplay();
+
+}
+
+
+void egg(){
+  // easter egg
+
+  long tempRand = random(100);
+
+
+//  displayStringAcrossTwoDisplays(String(tempRand));
+//  delay(200);
+  if (tempRand != 1){
+    return;
+  }
+
+    // congratulations, you get the easter egg
+
+
+
+    const String messages[] = {
+        "Hello, world.",
+        "DATA IS LIKE PEE IN THE POOL",
+        "IT'S ALWAYS DNS",
+        "Workday... AND NIGHT",
+        "EVERYTHING IS AN OBJECT",
+        "ASSETS = LIABILITIES + EQUITY",
+        "DEBUGGER?? I USE PRINT",
+        "It works on my machine.",
+        "Pleasanton Marriott is better than the AC.",
+        "Don't take BART from SFO.",
+        "LGA, JFA, EWR, LAS, SFO, MIA, PDX, DFW, MCO, ORD",
+        "I'm afraid I can't do that, Dave.",
+        "Are you Sarah Connor?",
+        "I'VE GOT 1099 PROBLEMS, BUT A W-2 AIN'T ONE",
+        "V = I x R",
+        "F = M x A",
+        "sudo make me a sandwich",
+        "The bathroom code is 1234*",
+        "sudo rm -fr /",
+        "[object Object]",
+        "There's no place like 127.0.0.1"
+    };
+
+    const int numMessages = 21;  // Arrays of strings are just syntactic sugar in C so yeah, I'm hard coding the length
+  displayStringAcrossTwoDisplays("********");
+  delay(1000);
+  displayStringAcrossTwoDisplays("- ANDY -");
+  delay(2000);
+  displayStringAcrossTwoDisplays("- SAYS -");
+  delay(2000);
+
+  scrollText(messages[random(0,numMessages -1)], 8, 200);
+  displayStringAcrossTwoDisplays("********");
+  delay(1000);
+
+}
+
+
+
 //  ____       _               
 // / ___|  ___| |_ _   _ _ __  
 // \___ \ / _ \ __| | | | '_ \ 
@@ -203,6 +315,7 @@ void setup() {
 
   Serial.print("in Setup\n");
 
+  randomSeed(analogRead(0));
   
   // setup the LED displays 
 
@@ -224,9 +337,8 @@ void setup() {
 
 //  displayStringAcrossTwoDisplays("*Setup*");
 
-  scrollText("Ping Toy by andy.maxwell@workday.com", 8, 200);
-
-
+  scrollText("Ping Toy by andy.maxwell@workday.com", displayLength, 200);
+  
   // get the stored Wifi credentials
   String ssid = preferences.getString("ssid", DEFAULT_SSID);
   String password = preferences.getString("password", DEFAULT_PASSWORD);
@@ -267,7 +379,7 @@ void startAccessPoint() {
 
 
   for (int i = 0; i < 3; i++)
-    scrollText("Connect to Access Point: PingToy, password LoganMcNeil", 8, 200);
+    scrollText("Connect to Access Point: PingToy, password LoganMcNeil", displayLength, 200);
   
   WiFi.softAP(apSSID, apPassword);
   IPAddress IP = WiFi.softAPIP();
@@ -277,7 +389,7 @@ void startAccessPoint() {
   sprintf(tempOut, "IP: %s\n", IP.toString());
 
   for (int i = 0; i < 3; i++)
-    scrollText(tempOut, 8, 200);
+    scrollText(tempOut, displayLength, 200);
 
   dnsServer.start(53, "*", IP);
 
@@ -362,7 +474,7 @@ void loop() {
 
     // TODO: don't show it every time. Show it just once in a while
     if (siteShowCount >= siteShowCountMax) {
-      scrollText(pingDestStr, 8, 150);
+      scrollText(pingDestStr, displayLength, 150);
       siteShowCount = 0;
     } else {
       siteShowCount++;
@@ -370,24 +482,33 @@ void loop() {
 
 //    Serial.println(siteShowCount);
 
-    displayStringAcrossTwoDisplays(outputText); // show the last output output text while running the next ping
+    displayStringAcrossTwoDisplays(outputText, dpAt); // show the last output output text while running the next ping
   
 
     Serial.print(remote_host);
     if (Ping.ping(remote_host) > 0){
-      Serial.printf(" response time : %d/%.2f/%d ms\n", Ping.minTime(), Ping.averageTime(), Ping.maxTime());
-      sprintf(outputChar, "%.2f", Ping.averageTime());
+      Serial.printf(" response time : %d/%.1f/%d ms\n", Ping.minTime(), Ping.averageTime(), Ping.maxTime());
+      sprintf(outputChar, "%.0fms", Ping.averageTime() * 10);
+      dpAt = 4;  // turn on the decimalPoint 
       padString(outputChar, 8);
       outputText = outputChar;
+      blink(Ping.averageTime() > 150);  // if the ping is slow, turn on blink.
+      
 
     } else {
+      blink(true);
       Serial.println(" Ping Error !");
       outputText = "**Error**";
+      dpAt = -1;  // turn of the decimal point
     }
     
-    displayStringAcrossTwoDisplays(outputText);
+    displayStringAcrossTwoDisplays(outputText, dpAt);
+    
     
     delay(2000); 
+
+    blink(false);
+    egg();
 
     // format for display on LED or servo.
   } else {
