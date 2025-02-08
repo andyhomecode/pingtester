@@ -24,6 +24,8 @@
 #include <Adafruit_GFX.h>
 #include "Adafruit_LEDBackpack.h"
 
+#define SWITCH_PIN 13  // GPIO pin for mode switch
+
 // instantiate the two i2c LED controllers
 Adafruit_AlphaNum4 alpha4_1 = Adafruit_AlphaNum4();
 Adafruit_AlphaNum4 alpha4_0 = Adafruit_AlphaNum4();
@@ -69,6 +71,7 @@ String htmlPage = R"rawliteral(
 </head>
 <body>
   <h1>Andy's Pinger Toy Config</h1>
+  <p><a href="https://github.com/andyhomecode/pingtester/">Github</a>
    <h2>Configure WiFi</h2>
   <form action="/save" method="post">
     <label for="ssid">SSID:</label><br>
@@ -76,7 +79,11 @@ String htmlPage = R"rawliteral(
     <label for="password">Password:</label><br>
     <input type="password" id="password" name="password"><br><br>
     <label for="pingDest">IP to ping:</label><br>
-    <input type="text" id="pingDest" name="pingDest"><br><br>
+    <input type="text" id="pingDest" name="pingDest" value="www.workday.com"><br><br>
+    <label for="hiPing">If ping over milliseconds turn on blink:</label><br>
+    <input type="text" id="hiPing" name="hiPing"><br><br>
+    <label for="egg">Egg:</label><br>
+    <input type="text" id="egg" name="egg" value="1800"><br><br>
     <input type="submit" value="Save">
   </form>
 </body>
@@ -93,10 +100,17 @@ String htmlPageDest = R"rawliteral(
 </head>
 <body>
   <h1>Andy's Pinger Toy Config</h1>
-   <h2>Configure Destination to Ping</h2>
+    <p><a href="https://github.com/andyhomecode/pingtester/">Github</a>
+   <h2>Configure</h2>
+   
   <form action="/save" method="post">
     <label for="pingDest">Server to ping:</label><br>
-    <input type="text" id="pingDest" name="pingDest"><br><br>
+    <input type="text" id="pingDest" name="pingDest" value="www.workday.com"><br><br>
+    <label for="hiPing">If ping over milliseconds turn on blink:</label><br>
+    <input type="text" id="hiPing" name="hiPing" value="200"><br><br>
+    <label for="egg">Egg:</label><br>
+    <input type="text" id="egg" name="egg" value="1800"><br><br>
+
     <input type="submit" value="Save">
   </form>
 </body>
@@ -204,7 +218,7 @@ void egg() {
   // easter egg
 
   // pop up once every hour or so
-  long tempRand = random(1800);
+  long tempRand = random(preferences.getInt("egg", 1800));
 
   // TODO, add a button to turn on to make it happen
 
@@ -267,6 +281,119 @@ void egg() {
 
 
 
+
+bool connectToWiFi(const char *ssid, const char *password) {
+  WiFi.begin(ssid, password);
+  Serial.printf("Connecting to WiFi: %s\n", ssid);
+
+  unsigned long startTime = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_TIMEOUT_MS) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("\nConnected to %s\n", ssid);
+    Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+
+    char tempOut[20];
+    sprintf(tempOut, "HTTP:\\\\%s", WiFi.localIP().toString().c_str());
+    for (int i = 0; i < 3; i++)
+      scrollText(tempOut, displayLength, 200);
+
+    return true;
+  } else {
+    Serial.println("\nFailed to connect.");
+
+    char tempOut[20];
+    for (int i = 0; i < 3; i++)
+      scrollText("Wi-Fi Failed to Connect", displayLength, 200);
+
+    return false;
+  }
+}
+
+void startAccessPoint() {
+  const char *apSSID = "PingToy";
+  const char *apPassword = "LoganMcNeil";
+
+
+  for (int i = 0; i < 3; i++)
+    scrollText("Connect to PingToy...", displayLength, 200);
+
+  WiFi.softAP(apSSID, apPassword);
+  IPAddress IP = WiFi.softAPIP();
+  Serial.printf("AP started. IP: %s\n", IP.toString().c_str());
+
+  char tempOut[20];
+  sprintf(tempOut, "IP: %s", IP.toString());
+
+  for (int i = 0; i < 3; i++)
+    scrollText(tempOut, displayLength, 200);
+
+  dnsServer.start(53, "*", IP);
+
+
+  server.on("/", HTTP_GET, []() {
+    server.send(200, "text/html", htmlPage);
+  });
+
+  server.on("/save", HTTP_POST, []() {
+    if (server.hasArg("ssid") && server.hasArg("password")) {
+      // String ssid = server.arg("ssid");
+      // String password = server.arg("password");
+
+      preferences.putString("ssid", server.arg("ssid"));
+      preferences.putString("password", server.arg("password"));
+      preferences.putString("pingDest", server.arg("pingDest"));
+      preferences.putInt("hiPing", server.arg("hiPing").toInt());
+      preferences.putInt("egg", server.arg("egg").toInt());
+
+
+      server.send(200, "text/html", "<h1>Credentials Saved. Restarting.</h1><p><a href=\"/\">home</a>");  // add comment for IP saved
+      delay(1000);
+      ESP.restart();
+    } else {
+      server.send(400, "text/html", "<h1>Invalid Input</h1>");
+    }
+  });
+
+  server.begin();
+  while (true) {
+    dnsServer.processNextRequest();
+    server.handleClient();
+  }
+}
+
+// void startServer() {
+
+//   // this is the server that's running when the server is connected to Wifi
+//   // it's not a thread, so it needs to be called to process.
+
+//   server.on("/", HTTP_GET, []() {
+//     server.send(200, "text/html", htmlPageDest);
+//   });
+
+//   server.on("/save", HTTP_POST, []() {
+//     if (server.hasArg("pingDest")) {
+
+//       preferences.putString("pingDest", server.arg("pingDest"));
+//       preferences.putInt("hiPing", server.arg("hiPing").toInt());
+//       preferences.putInt("egg", server.arg("egg").toInt());
+
+
+//       server.send(200, "text/html", "<h1>Destination Saved. Restarting.</h1><p><a href=\"/\">home</a>");  // add comment for IP saved
+//       delay(1000);
+//       ESP.restart();
+//     } else {
+//       server.send(400, "text/html", "<h1>Invalid Input</h1><p><a href =\"/\">home</a>");
+//     }
+//   });
+
+//   server.begin();
+// }
+
+
 //  ____       _
 // / ___|  ___| |_ _   _ _ __
 // \___ \ / _ \ __| | | | '_ \ 
@@ -279,6 +406,7 @@ void setup() {
   Serial.begin(9600);
   preferences.begin("wifi-creds", false);
 
+  pinMode(SWITCH_PIN, INPUT_PULLUP); // enable the setup vs run switch
 
   Serial.print("in Setup\n");
   Serial.print("Source at:\nhttps://github.com/andyhomecode/pingtester\n");
@@ -307,118 +435,25 @@ void setup() {
   // try to connect to WiFi using stored creds
   if (connectToWiFi(ssid.c_str(), password.c_str())) {
     isConnected = true;
-    startServer();  // used to setup the destination to ping
+    // startServer();  // used to setup the destination to ping
   } else {
     startAccessPoint();  // used ot setup the WiFi connection and destination to ping
   }
 }
 
-bool connectToWiFi(const char *ssid, const char *password) {
-  WiFi.begin(ssid, password);
-  Serial.printf("Connecting to WiFi: %s\n", ssid);
-
-  unsigned long startTime = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - startTime < WIFI_TIMEOUT_MS) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("\nConnected to %s\n", ssid);
-    Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
-    return true;
-  } else {
-    Serial.println("\nFailed to connect.");
-    return false;
-  }
-}
-
-void startAccessPoint() {
-  const char *apSSID = "PingToy";
-  const char *apPassword = "LoganMcNeil";
-
-
-  for (int i = 0; i < 3; i++)
-    scrollText("Connect to Access Point: PingToy, password LoganMcNeil", displayLength, 200);
-
-  WiFi.softAP(apSSID, apPassword);
-  IPAddress IP = WiFi.softAPIP();
-  Serial.printf("AP started. IP: %s\n", IP.toString().c_str());
-
-  char tempOut[20];
-  sprintf(tempOut, "IP: %s\n", IP.toString());
-
-  for (int i = 0; i < 3; i++)
-    scrollText(tempOut, displayLength, 200);
-
-  dnsServer.start(53, "*", IP);
-
-
-  server.on("/", HTTP_GET, []() {
-    server.send(200, "text/html", htmlPage);
-  });
-
-  server.on("/save", HTTP_POST, []() {
-    if (server.hasArg("ssid") && server.hasArg("password")) {
-      // String ssid = server.arg("ssid");
-      // String password = server.arg("password");
-
-      preferences.putString("ssid", server.arg("ssid"));
-      preferences.putString("password", server.arg("password"));
-      preferences.putString("pingDest", server.arg("pingDest"));
-
-      server.send(200, "text/html", "<h1>Credentials Saved. Restarting.</h1>");  // add comment for IP saved
-      delay(1000);
-      ESP.restart();
-    } else {
-      server.send(400, "text/html", "<h1>Invalid Input</h1>");
-    }
-  });
-
-  server.begin();
-  while (true) {
-    dnsServer.processNextRequest();
-    server.handleClient();
-  }
-}
-
-void startServer() {
-
-  // this is the server that's running when the server is connected to Wifi
-  // it's not a thread, so it needs to be called to process.
-
-  server.on("/", HTTP_GET, []() {
-    server.send(200, "text/html", htmlPageDest);
-  });
-
-  server.on("/save", HTTP_POST, []() {
-    if (server.hasArg("pingDest")) {
-
-      preferences.putString("pingDest", server.arg("pingDest"));
-
-
-      server.send(200, "text/html", "<h1>Destination Saved. Restarting.</h1>");  // add comment for IP saved
-      delay(1000);
-      ESP.restart();
-    } else {
-      server.send(400, "text/html", "<h1>Invalid Input</h1><p><a href =\"\\\">home</a>");
-    }
-  });
-
-  server.begin();
-}
-
-
-
 void loop() {
 
   char outputChar[20] = "xxxxxxx";  // local temp output for the loop
 
+
+  if (digitalRead(SWITCH_PIN) == LOW) {
+    // we're in setup mode, so show the web server and handle it.
+    startAccessPoint(); // we're not coming back from there.  It starts the wifi access point and web server.
+  } 
+
   if (isConnected) {
     // we're on wifi.  good deal
-    Serial.println("Doing work while connected to Wi-Fi...");
     Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
-    server.handleClient();  // let the Web Server run to handle things like saving new address to ping.
 
     String pingDestStr = preferences.getString("pingDest", "www.google.com");
 
@@ -441,11 +476,11 @@ void loop() {
     Serial.print(remote_host);
     if (Ping.ping(remote_host) > 0) {
       Serial.printf(" response time : %d/%.1f/%d ms\n", Ping.minTime(), Ping.averageTime(), Ping.maxTime());
-      sprintf(outputChar, "%.0fms", Ping.averageTime() * 10);  // format it so 12.3ms looks like that, but without the decimal point
-      dpAt = 4;                                                // turn on the decimal point, put it where it should go in the format above
-      padString(outputChar, 8);                                // left pad it because it's a number. (and no, I didn't use the NPM package)
-      outputText = outputChar;                                 // put it in the global so it'll survive the loop and can be reshown until the next ping.
-      blink(Ping.averageTime() > 150);                         // if the ping is slow, turn on blink. TODO: Make it a web setting
+      sprintf(outputChar, "%.0fms", Ping.averageTime() * 10);         // format it so 12.3ms looks like that, but without the decimal point
+      dpAt = 4;                                                       // turn on the decimal point, put it where it should go in the format above
+      padString(outputChar, 8);                                       // left pad it because it's a number. (and no, I didn't use the NPM package)
+      outputText = outputChar;                                        // put it in the global so it'll survive the loop and can be reshown until the next ping.
+      blink(Ping.averageTime() > preferences.getInt("hiPing", 250));  // if the ping is slow, turn on blink. TODO: Make it a web setting
 
 
     } else {
@@ -467,9 +502,8 @@ void loop() {
 
     // format for display on LED or servo.
   } else {
-    // In case you want to handle something when not connected
     Serial.println("Not connected to Wi-Fi.");
-    displayStringAcrossTwoDisplays("No Wifi");
+    displayStringAcrossTwoDisplays("No Wi-fi");
     delay(1000);
   }
 }
