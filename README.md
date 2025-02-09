@@ -2,36 +2,27 @@
 ESP32 based ping tester
 
 Making a toy to ping an address over wifi, and show the time to travel.
-using an ESP32-S3-WROOM-1, 
-and adafruit clone 14-segment LED HT16K33 backpacks
 
-Started December 2024, Finished on Feb 2, 2025
+Built with an ESP32-S3-WROOM-1, 
+two Adafruit clone 14-segment LED HT16K33 backpacks,
+and a slide switch. 
 
-To connect it to your wifi, plug the top connector into USB-C power
+Started December 2024, Finished on Feb 9, 2025
 
-If it can't find wifi, it'll turn on it's own AP Wi-Fi network called
+To use it:
 
-    PingToy
+1) plug it into USB-C power.
 
-The LED display will show the Wi-Fi network and Password.
+2) push the switch down to put it in SETUP mode
 
-It will also show a web address for you to go to to set it up.
-It does not have SSL, so it's plain old http://
+3) note the IP address shown on the LED display, usually 192.168.4.1
 
-The LED display will show the URL.
+3) connect to the wifi network:
+	SSID: PingToy
+	password: LoganMcNeil
 
-You can surf to it, set the Wi-Fi network name and password
-Also enter the name of the server to ping, no URL on the front, just
-server name like "www.google.com"
+4) open a browswer and go to http://192.168.4.1  (no SSL)
 
-When the ping tester is running, it also has a web page available
-for the same settings.  To find it, run something like this:
+5) enter the configuration you want. Hit Submit. It will reboot.
 
-    nmap -p 80 192.168.1.0/24
-
-on your computer to find it.
-
-
-FUTURE:
-
-add in HTTP fetcher to get and search for strings on public web pages
+6) flip switch to RUN.  After that, it'll remember it's settings between power cycles.
