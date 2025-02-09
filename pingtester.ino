@@ -33,6 +33,14 @@ Adafruit_AlphaNum4 alpha4_0 = Adafruit_AlphaNum4();
 const int displayLength = 8;
 
 
+// stand up the web server so we can config the settings
+WebServer server(80);
+DNSServer dnsServer;
+
+// Buffer to hold the final HTML page
+char htmlPage[2048];
+
+
 // Replace with default credentials if desired,
 // don't need to since it'll spin up an AP and website for you to configure it.
 const char *DEFAULT_SSID = "MyWiFi";
@@ -44,9 +52,6 @@ const unsigned long WIFI_TIMEOUT_MS = 20000;
 // store settings between sessions
 Preferences preferences;
 
-// stand up the web server so we can config the settings
-WebServer server(80);
-DNSServer dnsServer;
 
 bool isConnected = false;  // global variable to show WiFi state
 
@@ -62,60 +67,34 @@ const int siteShowCountMax = 30;
 int siteShowCount = siteShowCountMax;
 
 
-// here's the form for configuring the WiFi network and the destination to ping
-String htmlPage = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Pinger Toy Config</title>
-</head>
-<body>
-  <h1>Andy's Pinger Toy Config</h1>
-  <p><a href="https://github.com/andyhomecode/pingtester/">Github</a>
-   <h2>Configure WiFi</h2>
-  <form action="/save" method="post">
-    <label for="ssid">SSID:</label><br>
-    <input type="text" id="ssid" name="ssid"><br><br>
-    <label for="password">Password:</label><br>
-    <input type="password" id="password" name="password"><br><br>
-    <label for="pingDest">IP to ping:</label><br>
-    <input type="text" id="pingDest" name="pingDest" value="www.workday.com"><br><br>
-    <label for="hiPing">If ping over milliseconds turn on blink:</label><br>
-    <input type="text" id="hiPing" name="hiPing"><br><br>
-    <label for="egg">Egg:</label><br>
-    <input type="text" id="egg" name="egg" value="1800"><br><br>
-    <input type="submit" value="Save">
-  </form>
-</body>
-</html>
-)rawliteral";
+const char* htmlTemplate =
+"<!DOCTYPE html>\n"
+"<html>\n"
+"<head>\n"
+"  <title>Pinger Toy Config</title>\n"
+"</head>\n"
+"<body>\n"
+"  <h1>Andy's Pinger Toy Config</h1>\n"
+"  <p><a href=\"https://github.com/andyhomecode/pingtester/\">Github</a></p>\n"
+"  <h2>Configure WiFi</h2>\n"
+"  <form action=\"/save\" method=\"post\">\n"
+"    <label for=\"ssid\">SSID:</label><br>\n"
+"    <input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"%s\"><br><br>\n"
+"    <label for=\"password\">Password:</label><br>\n"
+"    <input type=\"password\" id=\"password\" name=\"password\" value=\"%s\"><br><br>\n"
+"    <label for=\"pingDest\">IP to ping:</label><br>\n"
+"    <input type=\"text\" id=\"pingDest\" name=\"pingDest\" value=\"%s\"><br><br>\n"
+"    <label for=\"hiPing\">If ping over milliseconds turn on blink (250 is default):</label><br>\n"
+"    <input type=\"text\" id=\"hiPing\" name=\"hiPing\" value=\"%d\"><br><br>\n"
+"    <label for=\"egg\">Egg Delay (seconds, 1800 is default):</label><br>\n"
+"    <input type=\"text\" id=\"egg\" name=\"egg\" value=\"%d\"><br><br>\n"
+"    <input type=\"submit\" value=\"Save\">\n"
+"  </form>\n"
+"</body>\n"
+"</html>\n";
 
 
-// here's the form for configuring the WiFi network and the destination to ping when on WiFi.
-String htmlPageDest = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Pinger Toy Config</title>
-</head>
-<body>
-  <h1>Andy's Pinger Toy Config</h1>
-    <p><a href="https://github.com/andyhomecode/pingtester/">Github</a>
-   <h2>Configure</h2>
-   
-  <form action="/save" method="post">
-    <label for="pingDest">Server to ping:</label><br>
-    <input type="text" id="pingDest" name="pingDest" value="www.workday.com"><br><br>
-    <label for="hiPing">If ping over milliseconds turn on blink:</label><br>
-    <input type="text" id="hiPing" name="hiPing" value="200"><br><br>
-    <label for="egg">Egg:</label><br>
-    <input type="text" id="egg" name="egg" value="1800"><br><br>
 
-    <input type="submit" value="Save">
-  </form>
-</body>
-</html>
-)rawliteral";
 
 
 void padString(char *str, int maxLength) {
@@ -297,10 +276,8 @@ bool connectToWiFi(const char *ssid, const char *password) {
     Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
 
     char tempOut[20];
-    sprintf(tempOut, "HTTP:\\\\%s", WiFi.localIP().toString().c_str());
-    for (int i = 0; i < 3; i++)
-      scrollText(tempOut, displayLength, 200);
-
+    sprintf(tempOut, "IP: %s", WiFi.localIP().toString().c_str());
+    scrollText(tempOut, displayLength, 200);
     return true;
   } else {
     Serial.println("\nFailed to connect.");
@@ -315,7 +292,10 @@ bool connectToWiFi(const char *ssid, const char *password) {
 
 void startAccessPoint() {
   const char *apSSID = "PingToy";
-  const char *apPassword = "LoganMcNeil";
+  const char *apPassword = "";  // no password,
+  //the Wifi AP is only on when the switch is in SETUP,
+  // and with Arduino's Harvard architecture there's very little attack surface for overflows or other such shenanigans
+
 
 
   for (int i = 0; i < 3; i++)
@@ -334,12 +314,25 @@ void startAccessPoint() {
   dnsServer.start(53, "*", IP);
 
 
+  // load stored settings or defaults to prefill form.
+  const String ssid = preferences.getString("ssid", "");
+  const String password = preferences.getString("password", "");
+  const String pingDest = preferences.getString("pingDestx", "www.workday.com");
+  int hiPing = preferences.getInt("hiPing", 250);
+  int egg = preferences.getInt("egg", 1800);
+
+
+
+  // Use snprintf to insert variables dynamically
+  snprintf(htmlPage, sizeof(htmlPage), htmlTemplate, ssid, password, "www.example.com", hiPing, egg);
+
+
   server.on("/", HTTP_GET, []() {
     server.send(200, "text/html", htmlPage);
   });
 
   server.on("/save", HTTP_POST, []() {
-    if (server.hasArg("ssid") && server.hasArg("password")) {
+    if (server.hasArg("ssid") && server.hasArg("password") && server.arg("pingDest") && server.arg("hiPing") && server.arg("egg")) {
       // String ssid = server.arg("ssid");
       // String password = server.arg("password");
 
@@ -350,7 +343,7 @@ void startAccessPoint() {
       preferences.putInt("egg", server.arg("egg").toInt());
 
 
-      server.send(200, "text/html", "<h1>Credentials Saved. Restarting.</h1><p><a href=\"/\">home</a>");  // add comment for IP saved
+      server.send(200, "text/html", "<h1>Credentials Saved.</h1><p>Disconnect from PingToy Wi-Fi</P>");  // add comment for IP saved
       delay(1000);
       ESP.restart();
     } else {
@@ -359,7 +352,19 @@ void startAccessPoint() {
   });
 
   server.begin();
+
+  // begin endless loop of waiting for requests and handling them. 
   while (true) {
+    
+    // did someone flip the switch to Run from Setup? 
+    if (digitalRead(SWITCH_PIN) == HIGH) {
+          // let them know and reboot.
+          displayStringAcrossTwoDisplays("-REBOOT-");
+          delay(300);
+          ESP.restart();
+    }
+
+    displayStringAcrossTwoDisplays("-Setup-");
     dnsServer.processNextRequest();
     server.handleClient();
   }
@@ -406,7 +411,7 @@ void setup() {
   Serial.begin(9600);
   preferences.begin("wifi-creds", false);
 
-  pinMode(SWITCH_PIN, INPUT_PULLUP); // enable the setup vs run switch
+  pinMode(SWITCH_PIN, INPUT_PULLUP);  // enable the setup vs run switch
 
   Serial.print("in Setup\n");
   Serial.print("Source at:\nhttps://github.com/andyhomecode/pingtester\n");
@@ -437,7 +442,8 @@ void setup() {
     isConnected = true;
     // startServer();  // used to setup the destination to ping
   } else {
-    startAccessPoint();  // used ot setup the WiFi connection and destination to ping
+    isConnected = false;
+    // startAccessPoint();  // used ot setup the WiFi connection and destination to ping
   }
 }
 
@@ -448,14 +454,15 @@ void loop() {
 
   if (digitalRead(SWITCH_PIN) == LOW) {
     // we're in setup mode, so show the web server and handle it.
-    startAccessPoint(); // we're not coming back from there.  It starts the wifi access point and web server.
-  } 
+    displayStringAcrossTwoDisplays("*Setup*");
+    startAccessPoint();  // we're not coming back from there.  It starts the wifi access point and web server.
+  }
 
   if (isConnected) {
     // we're on wifi.  good deal
     Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
 
-    String pingDestStr = preferences.getString("pingDest", "www.google.com");
+    String pingDestStr = preferences.getString("pingDest", "");
 
     const char *remote_host = pingDestStr.c_str();
 
