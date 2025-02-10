@@ -67,31 +67,31 @@ const int siteShowCountMax = 30;
 int siteShowCount = siteShowCountMax;
 
 
-const char* htmlTemplate =
-"<!DOCTYPE html>\n"
-"<html>\n"
-"<head>\n"
-"  <title>Pinger Toy Config</title>\n"
-"</head>\n"
-"<body>\n"
-"  <h1>Andy's Pinger Toy Config</h1>\n"
-"  <p><a href=\"https://github.com/andyhomecode/pingtester/\">Github</a></p>\n"
-"  <h2>Configure WiFi</h2>\n"
-"  <form action=\"/save\" method=\"post\">\n"
-"    <label for=\"ssid\">SSID:</label><br>\n"
-"    <input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"%s\"><br><br>\n"
-"    <label for=\"password\">Password:</label><br>\n"
-"    <input type=\"password\" id=\"password\" name=\"password\" value=\"%s\"><br><br>\n"
-"    <label for=\"pingDest\">IP to ping:</label><br>\n"
-"    <input type=\"text\" id=\"pingDest\" name=\"pingDest\" value=\"%s\"><br><br>\n"
-"    <label for=\"hiPing\">If ping over milliseconds turn on blink (250 is default):</label><br>\n"
-"    <input type=\"text\" id=\"hiPing\" name=\"hiPing\" value=\"%d\"><br><br>\n"
-"    <label for=\"egg\">Egg Delay (seconds, 1800 is default):</label><br>\n"
-"    <input type=\"text\" id=\"egg\" name=\"egg\" value=\"%d\"><br><br>\n"
-"    <input type=\"submit\" value=\"Save\">\n"
-"  </form>\n"
-"</body>\n"
-"</html>\n";
+const char *htmlTemplate =
+  "<!DOCTYPE html>\n"
+  "<html>\n"
+  "<head>\n"
+  "  <title>Pinger Toy Config</title>\n"
+  "</head>\n"
+  "<body>\n"
+  "  <h1>Andy's Pinger Toy Config</h1>\n"
+  "  <p><a href=\"https://github.com/andyhomecode/pingtester/\">Github</a></p>\n"
+  "  <h2>Configure WiFi</h2>\n"
+  "  <form action=\"/save\" method=\"post\">\n"
+  "    <label for=\"ssid\">SSID:</label><br>\n"
+  "    <input type=\"text\" id=\"ssid\" name=\"ssid\" value=\"%s\"><br><br>\n"
+  "    <label for=\"password\">Password:</label><br>\n"
+  "    <input type=\"password\" id=\"password\" name=\"password\" value=\"%s\"><br><br>\n"
+  "    <label for=\"pingDest\">IP to ping:</label><br>\n"
+  "    <input type=\"text\" id=\"pingDest\" name=\"pingDest\" value=\"%s\"><br><br>\n"
+  "    <label for=\"hiPing\">If ping over milliseconds turn on blink (250 is default):</label><br>\n"
+  "    <input type=\"text\" id=\"hiPing\" name=\"hiPing\" value=\"%d\"><br><br>\n"
+  "    <label for=\"egg\">Egg Delay (seconds, 1800 is default):</label><br>\n"
+  "    <input type=\"text\" id=\"egg\" name=\"egg\" value=\"%d\"><br><br>\n"
+  "    <input type=\"submit\" value=\"Save\">\n"
+  "  </form>\n"
+  "</body>\n"
+  "</html>\n";
 
 
 
@@ -298,8 +298,7 @@ void startAccessPoint() {
 
 
 
-  for (int i = 0; i < 3; i++)
-    scrollText("Connect to PingToy...", displayLength, 200);
+  scrollText("Connect to PingToy...", displayLength, 200);
 
   WiFi.softAP(apSSID, apPassword);
   IPAddress IP = WiFi.softAPIP();
@@ -317,14 +316,16 @@ void startAccessPoint() {
   // load stored settings or defaults to prefill form.
   const String ssid = preferences.getString("ssid", "");
   const String password = preferences.getString("password", "");
-  const String pingDest = preferences.getString("pingDestx", "www.workday.com");
+  const String pingDest = preferences.getString("pingDest", "www.workday.com");
   int hiPing = preferences.getInt("hiPing", 250);
   int egg = preferences.getInt("egg", 1800);
 
 
+  Serial.printf("pingDest: %s\n", pingDest.c_str());
+
 
   // Use snprintf to insert variables dynamically
-  snprintf(htmlPage, sizeof(htmlPage), htmlTemplate, ssid, password, "www.example.com", hiPing, egg);
+  snprintf(htmlPage, sizeof(htmlPage), htmlTemplate, ssid, password, pingDest.c_str(), hiPing, egg);
 
 
   server.on("/", HTTP_GET, []() {
@@ -342,8 +343,16 @@ void startAccessPoint() {
       preferences.putInt("hiPing", server.arg("hiPing").toInt());
       preferences.putInt("egg", server.arg("egg").toInt());
 
+      // if there's crap numbers, put in defaults.
+      if (preferences.getInt("hiPing") == 0) {
+        preferences.putInt("hiPing", 250);
+      }
 
-      server.send(200, "text/html", "<h1>Credentials Saved.</h1><p>Disconnect from PingToy Wi-Fi</P>");  // add comment for IP saved
+      if (preferences.getInt("egg") == 0) {
+        preferences.putInt("egg", 1800);
+      }
+
+      server.send(200, "text/html", "<h1>Credentials Saved.</h1><p>Disconnect from PingToy Wi-Fi</p>");  // add comment for IP saved
       delay(1000);
       ESP.restart();
     } else {
@@ -353,15 +362,15 @@ void startAccessPoint() {
 
   server.begin();
 
-  // begin endless loop of waiting for requests and handling them. 
+  // begin endless loop of waiting for requests and handling them.
   while (true) {
-    
-    // did someone flip the switch to Run from Setup? 
+
+    // did someone flip the switch to Run from Setup?
     if (digitalRead(SWITCH_PIN) == HIGH) {
-          // let them know and reboot.
-          displayStringAcrossTwoDisplays("-REBOOT-");
-          delay(300);
-          ESP.restart();
+      // let them know and reboot.
+      displayStringAcrossTwoDisplays("-REBOOT-");
+      delay(300);
+      ESP.restart();
     }
 
     displayStringAcrossTwoDisplays("-Setup-");
@@ -369,34 +378,6 @@ void startAccessPoint() {
     server.handleClient();
   }
 }
-
-// void startServer() {
-
-//   // this is the server that's running when the server is connected to Wifi
-//   // it's not a thread, so it needs to be called to process.
-
-//   server.on("/", HTTP_GET, []() {
-//     server.send(200, "text/html", htmlPageDest);
-//   });
-
-//   server.on("/save", HTTP_POST, []() {
-//     if (server.hasArg("pingDest")) {
-
-//       preferences.putString("pingDest", server.arg("pingDest"));
-//       preferences.putInt("hiPing", server.arg("hiPing").toInt());
-//       preferences.putInt("egg", server.arg("egg").toInt());
-
-
-//       server.send(200, "text/html", "<h1>Destination Saved. Restarting.</h1><p><a href=\"/\">home</a>");  // add comment for IP saved
-//       delay(1000);
-//       ESP.restart();
-//     } else {
-//       server.send(400, "text/html", "<h1>Invalid Input</h1><p><a href =\"/\">home</a>");
-//     }
-//   });
-
-//   server.begin();
-// }
 
 
 //  ____       _
@@ -431,14 +412,15 @@ void setup() {
 
   // title screen
   scrollText("Ping Toy by andy.maxwell@workday.com", displayLength, 200);
+  displayStringAcrossTwoDisplays("-=X**X=-");
 
   // get the stored Wifi credentials
   String ssid = preferences.getString("ssid", DEFAULT_SSID);
   String password = preferences.getString("password", DEFAULT_PASSWORD);
 
 
-  // try to connect to WiFi using stored creds
-  if (connectToWiFi(ssid.c_str(), password.c_str())) {
+  // If Setup switch is in RUN, try to connect to WiFi using stored creds
+  if (digitalRead(SWITCH_PIN) == HIGH && connectToWiFi(ssid.c_str(), password.c_str())) {
     isConnected = true;
     // startServer();  // used to setup the destination to ping
   } else {
@@ -452,65 +434,66 @@ void loop() {
   char outputChar[20] = "xxxxxxx";  // local temp output for the loop
 
 
+  // check to see if the mode switch is set to SETUP
   if (digitalRead(SWITCH_PIN) == LOW) {
     // we're in setup mode, so show the web server and handle it.
     displayStringAcrossTwoDisplays("*Setup*");
     startAccessPoint();  // we're not coming back from there.  It starts the wifi access point and web server.
-  }
-
-  if (isConnected) {
-    // we're on wifi.  good deal
-    Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
-
-    String pingDestStr = preferences.getString("pingDest", "");
-
-    const char *remote_host = pingDestStr.c_str();
-
-    // show what site we're pinging to every now and then
-    if (siteShowCount >= siteShowCountMax) {
-      scrollText(pingDestStr, displayLength, 150);
-      siteShowCount = 0;
-    } else {
-      siteShowCount++;
-    }
-
-    displayStringAcrossTwoDisplays(outputText, dpAt);  // show the last output output text while running the next ping
-
-
-    // THIS IS THE MEAT RIGHT HERE
-    // PING IT, FORMAT IT, SHOW IT.
-
-    Serial.print(remote_host);
-    if (Ping.ping(remote_host) > 0) {
-      Serial.printf(" response time : %d/%.1f/%d ms\n", Ping.minTime(), Ping.averageTime(), Ping.maxTime());
-      sprintf(outputChar, "%.0fms", Ping.averageTime() * 10);         // format it so 12.3ms looks like that, but without the decimal point
-      dpAt = 4;                                                       // turn on the decimal point, put it where it should go in the format above
-      padString(outputChar, 8);                                       // left pad it because it's a number. (and no, I didn't use the NPM package)
-      outputText = outputChar;                                        // put it in the global so it'll survive the loop and can be reshown until the next ping.
-      blink(Ping.averageTime() > preferences.getInt("hiPing", 250));  // if the ping is slow, turn on blink. TODO: Make it a web setting
-
-
-    } else {
-      // oops.
-      blink(true);
-      Serial.println(" Ping Error !");
-      outputText = "**Error**";
-      dpAt = -1;  // turn of the decimal point
-    }
-
-    // show the output
-    displayStringAcrossTwoDisplays(outputText, dpAt);
-
-    // let them see it.
-    delay(2000);
-
-    blink(false);
-    egg();
-
-    // format for display on LED or servo.
   } else {
-    Serial.println("Not connected to Wi-Fi.");
-    displayStringAcrossTwoDisplays("No Wi-fi");
-    delay(1000);
+    if (isConnected) {
+      // we're on wifi.  good deal
+      Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
+
+      String pingDestStr = preferences.getString("pingDest", "");
+
+      const char *remote_host = pingDestStr.c_str();
+
+      // show what site we're pinging to every now and then
+      if (siteShowCount >= siteShowCountMax) {
+        scrollText(pingDestStr, displayLength, 150);
+        siteShowCount = 0;
+      } else {
+        siteShowCount++;
+      }
+
+      displayStringAcrossTwoDisplays(outputText, dpAt);  // show the last output output text while running the next ping
+
+
+      // THIS IS THE MEAT RIGHT HERE
+      // PING IT, FORMAT IT, SHOW IT.
+
+      Serial.print(remote_host);
+      if (Ping.ping(remote_host) > 0) {
+        Serial.printf(" response time : %d/%.1f/%d ms\n", Ping.minTime(), Ping.averageTime(), Ping.maxTime());
+        sprintf(outputChar, "%.0fms", Ping.averageTime() * 10);         // format it so 12.3ms looks like that, but without the decimal point
+        dpAt = 4;                                                       // turn on the decimal point, put it where it should go in the format above
+        padString(outputChar, 8);                                       // left pad it because it's a number. (and no, I didn't use the NPM package)
+        outputText = outputChar;                                        // put it in the global so it'll survive the loop and can be reshown until the next ping.
+        blink(Ping.averageTime() > preferences.getInt("hiPing", 250));  // if the ping is slow, turn on blink. TODO: Make it a web setting
+
+
+      } else {
+        // oops.
+        blink(true);
+        Serial.println(" Ping Error !");
+        outputText = "**Error**";
+        dpAt = -1;  // turn of the decimal point
+      }
+
+      // show the output
+      displayStringAcrossTwoDisplays(outputText, dpAt);
+
+      // let them see it.
+      delay(2000);
+
+      blink(false);
+      egg();
+
+      // format for display on LED or servo.
+    } else {
+      Serial.println("Not connected to Wi-Fi.");
+      displayStringAcrossTwoDisplays("No Wi-fi");
+      delay(1000);
+    }
   }
 }
