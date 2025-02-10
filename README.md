@@ -19,7 +19,7 @@ To use it:
 
 3) connect to the wifi network:
 	SSID: PingToy
-	password: LoganMcNeil
+	password: none
 
 4) open a browswer and go to http://192.168.4.1  (no SSL)
 
