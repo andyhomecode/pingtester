@@ -276,7 +276,7 @@ bool connectToWiFi(const char *ssid, const char *password) {
     Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
 
     char tempOut[20];
-    sprintf(tempOut, "IP: %s", WiFi.localIP().toString().c_str());
+    sprintf(tempOut, "IP %s", WiFi.localIP().toString().c_str());
     scrollText(tempOut, displayLength, 200);
     return true;
   } else {
@@ -293,10 +293,13 @@ bool connectToWiFi(const char *ssid, const char *password) {
 void startAccessPoint() {
   const char *apSSID = "PingToy";
   const char *apPassword = "";  // no password,
-  //the Wifi AP is only on when the switch is in SETUP,
-  // and with Arduino's Harvard architecture there's very little attack surface for overflows or other such shenanigans
+                                //the Wifi AP is only on when the switch is in SETUP,
+                                // and with Arduino's Harvard architecture there's very little attack surface for overflows or other such shenanigans
 
-
+  if (isConnected) {
+    // if we're already connected to wifi for some reason, restart so we can start the AP.
+    ESP.restart();
+  }
 
   scrollText("Connect to PingToy...", displayLength, 200);
 
@@ -305,7 +308,7 @@ void startAccessPoint() {
   Serial.printf("AP started. IP: %s\n", IP.toString().c_str());
 
   char tempOut[20];
-  sprintf(tempOut, "IP: %s", IP.toString());
+  sprintf(tempOut, "IP %s", IP.toString());
 
   for (int i = 0; i < 3; i++)
     scrollText(tempOut, displayLength, 200);
@@ -436,10 +439,21 @@ void loop() {
 
   // check to see if the mode switch is set to SETUP
   if (digitalRead(SWITCH_PIN) == LOW) {
-    // we're in setup mode, so show the web server and handle it.
+    // we're in setup mode
+
+    // so show the web server and handle it.
     displayStringAcrossTwoDisplays("*Setup*");
     startAccessPoint();  // we're not coming back from there.  It starts the wifi access point and web server.
   } else {
+
+
+    if (WiFi.status() != WL_CONNECTED) {
+      // ruh roh.  Not connected to wi-fi.
+      displayStringAcrossTwoDisplays("No Wi-fi");
+      delay(1000);
+      ESP.restart();  // maybe better luck next time?
+    }
+
     if (isConnected) {
       // we're on wifi.  good deal
       Serial.printf("IP Address: %s\n", WiFi.localIP().toString().c_str());
@@ -494,6 +508,7 @@ void loop() {
       Serial.println("Not connected to Wi-Fi.");
       displayStringAcrossTwoDisplays("No Wi-fi");
       delay(1000);
+      ESP.restart();  // maybe better luck next time?
     }
   }
 }
