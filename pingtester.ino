@@ -477,7 +477,8 @@ void loop() {
       // PING IT, FORMAT IT, SHOW IT.
 
       Serial.print(remote_host);
-      if (Ping.ping(remote_host) > 0) {
+      // adding "Ping.ping(remote_host, 3)" to ensure a full roundtrip response, not just time. ChatGPT 4.5
+      if (Ping.ping(remote_host, 3) && Ping.averageTime() > 0) {
         Serial.printf(" response time : %d/%.1f/%d ms\n", Ping.minTime(), Ping.averageTime(), Ping.maxTime());
         sprintf(outputChar, "%.0fms", Ping.averageTime() * 10);         // format it so 12.3ms looks like that, but without the decimal point
         dpAt = 4;                                                       // turn on the decimal point, put it where it should go in the format above
